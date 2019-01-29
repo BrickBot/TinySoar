@@ -1,0 +1,88 @@
+#----------------------------------------------------------------------
+# line-tracker.soar: a simple line-follower.
+#
+# For the light sensor, zero is `light', 1023 is `dark'.
+#
+
+package require TinySoar
+
+#----------------------------------------------------------------------
+# Detect when we're actually over the line.
+sp {elaborate*over-line
+    (state <s> ^io.input-link.sensor-1 >= +790)
+    -->
+    (<s> ^over-line t)}
+
+#----------------------------------------------------------------------
+# Find line
+sp {find-line*propose
+    (state <s> ^superstate nil -^found-line t)
+    -->
+    (<s> ^operator <o> +)
+    (<o> ^name find-line)}
+
+sp {find-line*implement*detect-line
+    (state <s> ^operator.name find-line ^over-line t)
+    -->
+    (<s> ^found-line t)}
+
+sp {find-line*implement*move-forward
+    (state <s> ^operator.name find-line ^io.output-link <out>)
+    -->
+    (<out> ^motor-a forward ^motor-c forward)}
+
+sp {find-line*reconsider
+    (state <s> ^operator <o>)
+    (<o> ^name find-line)
+    -->
+    (<s> ^operator <o> @)}
+
+#----------------------------------------------------------------------
+# Track line
+sp {track-line*propose
+    (state <s> ^found-line t ^over-line t )
+    -->
+    (<s> ^operator <o> +)
+    (<o> ^name track-line)}
+
+sp {track-line*implement*reset-motor-a
+    (state <s> ^operator.name track-line ^io.output-link <out>)
+    (<out> ^motor-a reverse)
+    -->
+    (<out> ^motor-a reverse -)}
+
+sp {track-line*implement
+    (state <s> ^operator.name track-line ^io.output-link <out>)
+    -->
+    (<out> ^motor-a forward ^motor-c forward)}
+
+sp {track-line*reconsider
+    (state <s> ^operator <o>)
+    (<o> ^name track-line)
+    -->
+    (<s> ^operator <o> @)}
+
+#----------------------------------------------------------------------
+# Spin
+sp {spin*propose
+    (state <s> ^found-line t -^over-line t)
+    -->
+    (<s> ^operator <o> +)
+    (<o> ^name spin)}
+
+sp {spin*implement*reset-motor-a
+    (state <s> ^operator.name spin ^io.output-link <out>)
+    (<out> ^motor-a forward)
+    -->
+    (<out> ^motor-a forward -)}
+
+sp {spin*implement
+    (state <s> ^operator.name spin ^io.output-link <out>)
+    -->
+    (<out> ^motor-a reverse ^motor-c forward)}
+
+sp {spin*reconsider
+    (state <s> ^operator <o>)
+    (<o> ^name spin)
+    -->
+    (<s> ^operator <o> @)}

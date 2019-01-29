@@ -1,0 +1,31 @@
+# Simple chunk test
+
+package require TinySoar;
+set cycles 5
+
+sp {propose*left
+    (state <s> ^superstate nil)
+    -->
+    (<s> ^operator <o> +)
+    (<o> ^name left)}
+
+sp {propose*right
+    (state <s> ^superstate nil)
+    -->
+    (<s> ^operator <o> +)
+    (<o> ^name right)}
+
+
+sp {prefer*left
+    (state <s> ^impasse tie ^attribute operator ^superstate <ss>)
+    (<ss> ^operator <o1> + ^operator <o2> +)
+    (<o1> ^name left)
+    (<o2> ^name right)
+    -->
+    (<ss> ^operator <o1> > <o2>)}
+
+sp {implement*left
+    (state <s> ^operator.name left ^io.output-link <out>)
+    -->
+    (<out> ^success t)}
+

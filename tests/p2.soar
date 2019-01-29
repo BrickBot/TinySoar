@@ -1,0 +1,55 @@
+# Test o-support semantics.
+
+package require TinySoar;
+
+# Drive forward until we find the line.
+sp {propose*find-line
+    (state <s> ^superstate nil -^found-line t)
+    -->
+    (<s> ^operator <o> +)
+    (<o> ^name find-line)}
+
+
+sp {implement*find-line*move-forward
+    (state <s> ^operator <o> ^io <io>)
+    (<o> ^name find-line)
+    (<io> ^output-link <out>)
+    -->
+    (<out> ^motor-a forward ^motor-c forward)}
+
+
+sp {implement*find-line*detect-line
+    (state <s> ^operator <o> ^io <io>)
+    (<o> ^name find-line)
+    (<io> ^input-link <in>)
+    (<in> ^sensor-a > 75)
+    -->
+    (<s> ^found-line t)}
+
+
+sp {find-line*reconsider
+    (state <s> ^operator <o>)
+    (<o> ^name find-line)
+    -->
+    (<s> ^operator <o> @)}
+
+# Once we've found the line, just wait.
+sp {propose*wait
+    (state <s> ^superstate nil ^found-line t)
+    -->
+    (<s> ^operator <o> +)
+    (<o> ^name wait)}
+
+sp {implement*wait
+    (state <s> ^operator <o> ^io <io>)
+    (<o> ^name wait)
+    (<io> ^output-link <out>)
+    (<out> ^motor-a <a> ^motor-c <c>)
+    -->
+    (<out> ^motor-a <a> - ^motor-c <c> -)}
+
+sp {reconsider*wait
+    (state <s> ^operator <o>)
+    (<o> ^name wait)
+    -->
+    (<s> ^operator <o> @)}

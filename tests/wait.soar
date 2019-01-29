@@ -1,0 +1,16 @@
+# This is just a silly file that selects the `wait' operator
+# over and over.
+
+sp {wait*propose
+    (state <s> ^superstate nil)
+    -->
+    (<s> ^operator <o> +)
+    (<o> ^name wait)
+    };
+
+sp {wait*reconsider
+   (state <s> ^operator <o>)
+   (<o> ^name wait)
+   -->
+   (<s> ^operator <o> @)
+   }

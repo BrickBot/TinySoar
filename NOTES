@@ -1,0 +1,800 @@
+-*- Mode: text -*-
+
+Beta Network
+
+- Memory node (also `mem node' or `m node'). A `beta memory'
+  node. Can be hashed or unhashed. Creates and stores |token| objects?
+
+- Positive node (also `pos node' and `p node'). Can be hashed or unhashed.
+
+- MP node. Can be hashed or unhashed. Combined `memory node' and
+  `positive node' to save space? From the `node_[left|right]_addition'
+  routines, it appears that this is the case...
+
+- Negative node. Can be hashed or unhashed.
+
+- Dummy top node. Parents all of the other beta nodes in the network.
+
+- Dummy matches node.
+
+- CN (conjunctive negative) node, and CN-partner node.
+
+- P (production?) node. 
+
+hashed versus unhashed beta memory nodes? Why are some hashed and
+others aren't? All that appears to be different is the computation of
+the hash value that's used to find appropriate tokens...
+
+A |token| appears to be the partially instantiated rule. There is a
+`dummy top token' that is assigned to the `dummy top node' which is
+the eventual ancestor of every beta node. Each token is hashed into
+the `left hashtable'.
+
+What is the difference between `left' and `right' memory?
+
+- the `left addition' routines all take a |rete_node|, a |token|, and
+  a |wme|; the `right addition' routines take a |rete_node| and a |wme|,
+  but not a |token|. What's going on here?
+
+- After adding a new |wme| to alpha memory, we call the `right node
+  addition routine' for each beta node that hangs off of the alpha
+  memory.
+
+- The beta node addition routines only call the `left node addition
+  routines'.
+
+- Interestingly, there is no `right node addition routine' for a
+  memory node; however, there *is* a `right node addition routine' for
+  an MP node. Here's how they break down...
+
+  DUMMY_TOP_BNODE           no addition routines
+  DUMMY_MATCHES_BNODE       left addition routine only
+  [UNHASHED_]MEMORY_BNODE   left only
+  [UNHASHED_]POSITIVE_BNODE right only
+  [UNHASHED_]MP_BNODE       left & right
+  [UNHASHED_]NEGATIVE_BNODE left & right
+  CN_[PARTNER_]BNODE        left only
+  P_BNODE                   left only
+
+- So, is the alpha network `right memory' and the beta network `left
+  memory'?
+
+What is `unlinking'?
+
+Starting to understand how a production is converted into beta nodes a
+bit better. Specifically, how `variable bindings' work. So we parse
+the list of conditions, and as we do so, we both create beta nodes and
+build up a list of `variable bindings'. A `variable binding' is simply
+a `field' (the id, attr, or value) and a `depth' in the beta network.
+
+When we make a new condition node, we `sparsely' beind variables
+before creating the rete tests (so that, at worst, if a variable is
+not yet bound, it the test will be `scoped' to the current beta
+node). Then, after the condition node has been created, we formally
+push the variables onto the stack (so that subsequent users of these
+variables can find them).
+
+After we're done parsing the list of conditions, we remove all of the
+variable bindings. (Which, BTW, are stored in the `symbol table',
+making this part of the code non-reentrant.)
+
+---
+
+For a condition like `(state <s>)', Soar is creating a conjunctive
+condition whose first part is a `goal id' test, and whose second part
+is an `equality test'. It looks like how this works then is that the
+`goal id' part of the test checks the WME's `id' field to see if the
+identifier is actually a goal, and the second part of the test binds
+the goal to a variable. Tricky!
+
+---
+
+Hack for computing code size...
+
+h8300-hitachi-hms-objdump --section-headers *.o |\
+ grep .text |\
+ awk '{ print $3; }' |\
+ perl -e 'while (<>) { $sum += hex($_); } print "$sum\n";'
+
+or...
+
+objdump --section-headers alloc.o agent.o rete.o wmem.o ht.o debug.o |\
+ grep .text |\
+ awk '{ printf "0x%s\n", $3; }' |\
+ xargs printf "%d\n"
+
+---
+
+I was thinking that it might be possible to shrink WMEs and generally
+save space by having a WME just maintain its `value', and get its `id'
+and `attr' from its slot...
+
+  struct wme {
+    struct slot* slot;
+    symbol_t     value;
+    ...
+  };
+
+You could then enumerate all of the WMEs in the system by enumerating
+the agent's `slots' hashtable. The only problem with this scheme are
+WMEs that are created `outside' the RETE network; e.g., by somebody
+doing brain surgery on the agent.
+
+---
+
+CHUNKING
+
+  1. Collect all ``result'' preferences created by an instantiation,
+     that is, preferences for superstates,
+     |get_results_for_instantiation()| in chunk.c does this.
+
+  2. For each preference, call |backtrace_through_instantiation()|
+     with the instantiation that created the preference. (Which is a
+     bit weird, because shouldn't all the preferences have been
+     created by the same instantiation?)
+
+  3. Repeatedly |trace_locals()|, |trace_grounded_potentials()|, and
+     |trace_ungrounded_potentials()| until there are no more (?)
+     ungrounded potentials.
+
+  4. Build the chunk conditions.
+
+  backtrace_through_instantiation(inst, grounds_level, trace_cond, indent)
+
+    1. Bail if we've already backtraced this |inst|; otherwise, note
+       that we've backtraced it.
+
+    2. Mark the transitive closure of each higher goal that was tested
+       in the ID field of a top-level positive condition.
+
+Hmm. Interesting. We associate a level in the goal stack with each
+identifier: this is important for chunking. Presumably identifiers
+``created'' in a subgoal get ``promoted'' to the goal-level to which
+they were returned.
+
+Okay, so |preference| is going to have to change. Instead of
+maintaining a doubly-linked list of the preferences in the current
+instantiation, it's going to need a back-pointer to the instantiation
+that created it. From the instantiation, we can get the token, and
+from the token, I think we can walk back up through the identifiers
+that we tested. Hrm, but how to get from _those_ identifiers to the
+preference that created it? (Do we need to?)
+
+---
+
+I _could_ incorporate the goal-level into the identifier's symbol
+itself: the highest two bits would continue to discriminate the symbol
+type, some number of the remaining high bits would encode the
+goal-level, and the low bits would be the identifier. Of course, with
+a 16-bit word, we start to run into some scarcity problems. For
+example, 2/4/10 leaves us 16 goal levels with 1024 identifiers (which
+is probably not unreasonable). Promotion would simply occur at
+assignment time.
+
+That said, the old Soar code has a bunch of magic for finding
+``clones'' (i.e., same identifier, different goal-level). I'm not sure
+how important that is yet.
+
+---
+
+Encoding the goal level into the identifier itself wouldn't work: the
+identifier is copy-propagated in too many places for us to reasonably
+keep this synchronized.
+
+So let's revisit why we need to know the goal-level of an
+identifier. The `goal level' of an identifier is the highest goal from
+which the identifier is reachable via the directed WME graph
+(following the `id' through the `attr' to the `value').
+
+First, we need to know this in order to detect `promotion' of new
+identifiers; i.e., when a lower-level identifier becomes reachable
+from a higher-level goal. For chunking, newly reachable identifiers
+comprise the `results' that have been returned from a lower-level goal
+to a higher-level goal: these preferences are included in the chunk's
+RHS, and are back-traced to compute the chunk's LHS.
+
+Second, we need to know when an identifier becomes *unreachable* from
+any goal. This allows us to garbage collect o-supported preferences
+from subgoals that no longer exist.
+
+In theory, we could compute this value each time we need it; however,
+doing so would probably require O(n**2) time where |n| is the number
+of WMEs (because we'd need to do |n| traversals over the WME table to
+propagate each goal identifier's level), and O(m) space (where |m| is
+the number of identifiers, to remember the goal level of each
+identifier so far).
+
+Alternatively, we could cache the identifier's goal level:
+
+- By making identifiers be pointers to out-of-line structures.
+
+  . The simplest implementation here would require the out-of-line
+    structures to be aligned on four-byte boundaries since symbol_t
+    uses the low two bits for type information. Expensive...unless we
+    need the space for something besides the goal level.
+
+  . We could make the low bit of the symbol_t designate identifier
+    vs. non-identifier, and then differentiate non-identifiers with
+    higher bits. This makes the symbol extraction logic more
+    complicated, and this logic is used all over IIRC.
+
+  . Doing this would solve the `identifier recycling' problem.
+
+- By keeping an out-of-line lookup table that tracks identifier
+  attributes.
+
+  . A simple implementation would keep one byte per identifier in a
+    flat array. Ideally, this table could also be used to generate new
+    identifiers, thus also avoiding the identifier recycling
+    problem. The down-side is that the array would require a large
+    block of contiguous space; potentially difficult to come by on a
+    Lego RCX.
+
+If we cache the identifier's goal level, we'd want to be able to keep
+it synchronized (e.g., during `promotion') with a minimum of
+work. I.e., caching would be of little value if wehad to continually
+re-compute each identifier's reachability from scratch.
+
+Doing that might not be so easy: we can certainly detect when a
+lower-level `value' becomes reachable from a higher-level `id';
+however, we'd need to traverse the WME graph do determine the
+transitive closure that is reachable from the newly-promoted value.
+
+---
+
+Since wme has a back-pointer to its slot, I think that we should be
+able to do everything we need to do in the RETE network.
+
+  . For each preference |pref| that got created as a result:
+
+    . Use the |pref->instantiation| back-pointer to determine the
+      instantiation |inst| that created the preference
+
+    . Start with token |tok| set to the |inst->token|; that is, the
+      token that is the tail of the instantiated match. walk up |tok|
+      via the |tok->parent| links. For each token |tok| along the
+      chain:
+
+      . The WME |wme| that instantiated the token is accessible via
+        |tok->wme|. The test is accessable via |tok->node|. The
+        preferences that created |wme| are accessible via
+        |wme->slot->preferences|. Recurse here!
+
+
+---
+
+Trying to understand the backtracing algorithm. `Grounds' are
+conditions that will appear in the chunk's left-hand side.
+
+  var grounds_level;
+
+  procedure backtrace_through_instantiation(inst)
+  begin
+    /* Compute the set of identifiers reachable from higher-level goal
+       identifiers via the instantiation's positive condition
+       tests. */
+    |tc| = {};
+    do
+      foreach positive condition |c| in |inst|
+      begin
+        if |c.id| is a goal and |c.id.level <= grounds_level| then
+          /* basis case: id is a higher goal that was tested, so add
+             the value */
+          |tc| = |tc| U |c.value|
+
+        else if |c.id| is in |tc| then
+          /* the ID is in the transitive closure, so add the value */
+          |tc| = |tc| U |c.value|
+
+        endif
+      end
+    until |tc| is reaches a fix point.
+
+    foreach condition |c| in |inst|
+    begin
+      if |c| is a positive condition then
+        if |c.id| in |tc| then
+          /* The condition tested something above us that is
+             immediately reachable from a higher goal. */
+          |grounds| = |grounds| U |c|;
+
+        else if |c.id.level <= grounds_level| then
+          /* The condition tested something above us that's not
+             immediately reachable from a higher goal. */
+          |potentials| = |potentials| U |c|;
+
+        else
+          /* The condition tested something at the current
+             goal-level. */
+          |locals| = |locals| U |c|;
+
+        endif
+      else
+        /* Negative cond's are either grounds or potentials. */
+        |negated| = |negated| U make_chunk_cond_for(|c|);
+      endif
+    end
+
+    /* Add new nots to the `not-set'. */
+    if |inst.nots| then
+      |instantiations_with_nots| = |instantiations_with_nots| U |inst|
+    endif
+  end.
+
+  procedure trace_locals()
+  begin
+    foreach condition |c| in |locals| do
+      |locals| = |locals| - |c|;
+
+      /* Did we test a preference at this level that's a clone of some
+         higher-level preference? */
+      |bt_pref| = find_clone_for_level(|c.preference|, |grounds_level| + 1);
+
+      if |bt_pref| then
+        /* Yes. Backtrace through the instantiation that created the
+           preference in our current match-goal level */
+        backtrace_through_instantiation(|bt_pref.instantiation|);
+
+        /* XXX check if any prohibit preferences */
+
+      else if |c.id| is a goal and |c.attr| == "quiescence" and |c.value| == "t" then
+        |variablize_this_chunk| = false;
+
+      else
+        |potentials| = |potentials| U |c|;
+      endif
+    end
+  end.
+
+  procedure trace_grounded_potentials()
+  begin
+    |tc| = {};
+    foreach positive condition |c| in |grounds| do
+      |tc| = |tc| U |c.id| U |c.value|;
+    end
+
+    do
+      foreach condition |c| in |potentials| do
+        if |c.id| in |tc| then /* XXX NCC */
+          |potentials| = |potentials| - |c|;
+          |grounds| = |grounds| U |c|;
+          |tc| = |tc| U |c.id| U |c.value|;
+        endif
+      end
+    until |grounds| reaches a fix point.
+  end.
+
+  function trace_ungrounded_potentials() return boolean
+  begin
+    /* Pick out positive potentials that we can backtrace through. */
+    |pots_to_bt| = {};
+
+    foreach condition |c| in |potentials| do
+      /* Did we test a preference at this level that's a clone of some
+         higher-level preference? */
+      |bt_pref| = find_clone_for_level(|c.preference|, |grounds_level| + 1);
+
+      if |bt_pref| then
+        /* Yes. Remove from the set of potentials and backtrace it. */
+        |potentials| = |potentials| - |c|
+        |pots_to_bt| = |pots_to_bt| U |c|
+      endif
+    end
+
+    foreach condition |c| in |pots_to_bt| do
+      |bt_pref| = find_clone_for_level(|c.preference|, |grounds_level| + 1);
+
+      backtrace_through_instantiation(|bt_pref.instantiation|);
+
+      /* XXX check if any prohibits preferences */
+    end
+
+    return |pots_to_bt| != {}
+  end.
+
+  procedure chunk(inst)
+  begin
+    /* inst.match_goal_level = lowest goal tested; i.e., the
+       goal-level at which this instantiation ``fired''? */
+    |grounds_level| = |inst.match_goal_level| - 1;
+
+    |results| = get_results_of(inst);
+    foreach |pref| in |results| do
+      backtrace_through_instantiation(|pref.instantiation|);
+    done
+
+    do
+      trace_locals();
+      trace_grounded_potentials();
+      |more_potentials_to_backtrace| = trace_ungrouneded_potentials();
+    while (|more_potentials_to_backtrace|)
+
+    foreach condition |c| in |grounds| do
+      /* add |c| to new chunk's conditions */
+    end
+
+    /* XXX deal with nots */
+
+    /* variablize the chunk */
+
+    /* add goal or impasse tests */
+  end.
+
+I think that one thing that'll be hard to do in the raw RETE net will
+be to figure out how to string together matching |id| and |value|
+tests, as we need to do in |backtrace_through_instantiation()|.
+
+What if we decided to ignore `clones' and just used the |preference|
+argument to |find_clones_for_level|?
+
+I'm not sure why we need to distinguish between `locals' and
+`potentials'. Need to understand that a bit better.
+
+---
+
+How do we account for `better' or `worse' preferences in the
+backtrace? It looks like we don't. Given:
+
+package require Soar;
+
+sp {elaborate*top-state
+    (state <s> ^superstate nil)
+    -->
+    (<s> ^ball <b>)
+    (<b> ^color red)}
+
+sp {propose*foo
+    (state <s> ^impasse no-change ^attribute state ^superstate <ss>)
+    (<ss> ^ball <b>)
+    -->
+    (<s> ^operator <o> +)
+    (<o> ^name foo ^ball <b>)}
+
+sp {propose*bar
+    (state <s> ^impasse no-change ^attribute state ^superstate <ss>)
+    (<ss> ^ball <b>)
+    -->
+    (<s> ^operator <o> +)
+    (<o> ^name bar)}
+
+sp {prefer*foo*over*bar
+    (state <s> ^operator <o1> + ^operator <o2> + ^superstate <ss>)
+    (<ss> ^ball.color red)
+    (<o1> ^name foo)
+    (<o2> ^name bar)
+    -->
+    (<s> ^operator <o1> > <o2>)}
+
+sp {implement*foo
+    (state <s> ^operator <o>)
+    (<o> ^name foo ^ball <b>)
+    -->
+    (<b> ^counted t)}
+
+sp {terminate*foo
+    (state <s> ^operator <o>)
+    (<o> ^name foo ^ball <b>)
+    (<b> ^counted t)
+    -->
+    (<s> ^operator <o> @)}
+
+Soar-8.3 builds this chunk:
+
+sp {chunk-3*d2*snochange*1
+    :chunk
+    (state <s1> ^ball <b1>)
+    -->
+    (<b1> ^counted t +)
+}
+
+Presumably, if we'd accounted for the `better' preference from
+|prefer*foo*over*bar|, the chunk's conditions ought to have included
+|<b1> ^color red|.
+
+---
+
+If, for some reason, we can't chunk (e.g., the backtrace detects that
+we tested |^quiescence t| along the way), we create a
+`justification'. A justification is a temporary rule that is excised
+as soon as it no longer matches.
+
+---
+
+Couple things I thought of that I wanted to test.
+
+- If you decorate any identifier from a ``higher level'', does it get
+  returned as a result? For example, an operator tie creates
+
+    |^item O1|
+
+  WMEs for each operator in the substate.
+
+  Given this test:
+
+    sp {propose*left
+        (state <s> ^superstate nil)
+        -->
+        (<s> ^operator <o> +)
+        (<o> ^name left)}
+
+    sp {propose*right
+        (state <s> ^superstate nil)
+        -->
+        (<s> ^operator <o> +)
+        (<o> ^name right)}
+
+    sp {prefer*highest
+        (state <s> ^operator <o1> + ^operator <o2> +)
+        (<o1> ^score <s1>)
+        (<o2> ^score { <s2> > <s1> })
+        -->
+        (<s> ^operator <o2> > <o1>)}
+
+    sp {score*left
+        (state <s> ^impasse tie ^attribute operator ^item <o>)
+        (<o> ^name left)
+        -->
+        (<o> ^score 1)}
+
+
+    sp {score*right
+        (state <s> ^impasse tie ^attribute operator ^item <o>)
+        (<o> ^name right)
+        -->
+        (<o> ^score 2)}
+
+  The answer appears to be ``yes''.
+
+IIRC, I was trying to figure out why ``clones'' are necessary. (One
+reason might have been if we _didn't_ return stuff to higher levels,
+but that doesn't appear to be the case.)
+
+The comments in |find_clone_for_level()| say:
+
+  This routines take a given preference and finds the clone of it
+  whose match goal is at the given goal_stack_level.  (This is used to
+  find the proper preference to backtrace through.)
+
+Maybe this is needed to handle cases where state is ``copied'' from
+the superstate? But the only place where clones appear to be made is
+in |make_clones_of_results()|, which says:
+
+  When we build the initial instantiation of the new chunk, we have
+  to fill in preferences_generated with *copies* of all the result
+  preferences.  These copies are clones of the results.
+
+Ah, the answer appears to be in soarkernel.h:
+
+  next_clone, prev_clone: used for a doubly-linked list of all
+  "clones" of this preference.  When a result is returned from a
+  subgoal and a chunk is built, we get two copies of the "same"
+  preference, one from the subgoal's production firing, and one from
+  the chunk instantiation.  If results are returned more than one
+  level, or the same result is returned simultaneously by multiple
+  production firings, we can get lots of copies of the "same"
+  preference.  These clone preferences are kept on a list so that we
+  can find the right one to backtrace through, given a wme supported
+  by "all the clones."
+
+I guess I don't see how this is different from two ``normal''
+productions that support the same WME? I guess the difference is that
+two preferences for the same WME must necessarily come from two
+distinct backtraces.
+
+---
+
+Some more stuff to test...
+
+- Do complex results get returned? (If so, that would explain some of
+  the confusion I'm having about why we ask for each preference's
+  instantiation in |chunk()|, above.)
+
+- How does chunking across o-supported preferences work? E.g.,
+  ``counting to three''
+
+- Can we ``over-variablize'' a disjunctive condition into a
+  conjunctive condition?
+
+---
+
+Okay, so complex results _do_ get returned. This set of rules:
+
+  sp {elaborate*top-state
+      (state <s> ^superstate nil)
+      -->
+      (<s> ^ball <b>)
+      (<b> ^color red)}
+
+  sp {elaborate*snc*make-return-crap
+      (state <s> ^impasse no-change ^attribute state)
+      -->
+      (<s> ^return <r>)
+      (<r> ^size small ^texture smooth ^opacity clear)}
+
+  sp {elaborate*snc*copy-ball
+      (state <s> ^impasse no-change ^attribute state ^superstate <ss> ^return <r>)
+      (<ss> ^ball <b>)
+      -->
+      (<b> ^junk <r>)}
+
+produced this chunk:
+
+  sp {chunk-1*d1*snochange*1
+      :chunk
+      (state <s1> ^ball <b1>)
+      -->
+      (<b1> ^junk <j1> +)
+      (<j1> ^opacity clear + ^texture smooth + ^size small +)
+  }
+
+---
+
+With respect to variablization, it looks like Soar8 does the obvious
+thing. For example, these rules:
+
+  sp {elaborate*top-state
+      (state <s> ^superstate nil)
+      -->
+      (<s> ^ball <b>)
+      (<b> ^color blue ^size large)}
+
+  sp {elaborate*snc*test1
+      (state <s> ^impasse no-change ^attribute state ^superstate <ss>)
+      (<ss> ^ball <b>)
+      (<b> ^color blue)
+      -->
+      (<s> ^test1 passed)}
+
+
+  sp {elaborate*snc*test2
+      (state <s> ^impasse no-change ^attribute state ^superstate <ss>)
+      (<ss> ^ball <b>)
+      (<b> ^size large)
+      -->
+      (<s> ^test2 passed)}
+
+  sp {return*chunk
+      (state <s> ^impasse no-change ^attribute state ^superstate <ss>
+                 ^test1 passed ^test2 passed)
+      -->
+      (<ss> ^result yaba-daba-doo)}
+
+produced this chunk:
+
+  sp {chunk-1*d1*snochange*1
+      :chunk
+      (state <s1> ^ball <b1>)
+      (<b1> ^size large ^color blue)
+      -->
+      (<s1> ^result yaba-daba-doo +)
+  }
+
+In theory, it might've produced a chunk like:
+
+  sp {chunk-1*d1*snochange*1
+      (state <s1> ^ball <b1> ^ball <b2>)
+      (<b1> ^size large)
+      (<b2> ^color blue)
+      -->
+      (<s1> ^result yab-daba-doo +)}
+
+Because, strictly speaking, the rules that produced the above chunk
+would've allowed it. But, the implication is that doing variablization
+based on equality of the instantiated values is (apparently)
+sufficient.
+
+With respect to o-support, I guess what I was trying to get at was a
+situation where we _remove_ a preference, and in doing so, lose some
+important backtrace information. For example, counting. I took a stab
+at this with p8.soar, but am too groggy right now to figure out if
+what it's doing is magic.
+
+---
+
+Okay, I've just implemented o-support, and I think I see some smoke on
+the horizon with respect to my ownership model. Specifically, if a
+preference is o-supported, and its instantiation dies, I destroy the
+instantiation object (after clearing back-pointers from the
+preference).
+
+---
+
+Hrm. Why isn't p8.soar's |propose*count*one| production matching? The
+problem appears to be with the negative condition creating something
+that's skewed just a little bit in the RETE network. Specifically, it
+looks like the test is _almost_ right: it's currently
+|value==<1,value> id==<3,value>| when what I think it should be is
+just |id==<3,value>|.
+
+Okay, the more I look at this, the more I think I sorta botched
+negative conditions. What's happening here is that subsequent positive
+tests (i.e., once that appear after the negative test in the condition
+list) are treating the negative test as if it's actually _bound_ a
+value to its variable, which is just wrong. (If it's bound something,
+then it matched, and the negative condition would've prevented us from
+ever worrying about this situation.)
+
+---
+
+Found a patch for gcc-3.0 to get it to build a cross-compiler for
+h8300:
+
+*** expr.c	Fri Apr 13 20:39:22 2001
+--- expr.c.fix	Sat Apr 14 01:49:55 2001
+***************
+*** 2776,2781 ****
+--- 2776,2782 ----
+    enum machine_mode submode;
+    enum mode_class class = GET_MODE_CLASS (mode);
+    unsigned int i;
++   rtx temp;
+  
+    if ((unsigned int) mode >= (unsigned int) MAX_MACHINE_MODE)
+      abort ();
+***************
+*** 2962,2968 ****
+  	 X with a reference to the stack pointer.  */
+        if (push_operand (x, GET_MODE (x)))
+  	{
+! 	  anti_adjust_stack (GEN_INT (GET_MODE_SIZE (GET_MODE (x))));
+  	  x = change_address (x, VOIDmode, stack_pointer_rtx);
+  	}
+  #endif
+--- 2963,2985 ----
+  	 X with a reference to the stack pointer.  */
+        if (push_operand (x, GET_MODE (x)))
+  	{
+!           /* Do not use anti_adjust_stack, since we don't want to update
+!              stack_pointer_delta.  */
+!           temp = expand_binop (Pmode,
+! #ifdef STACK_GROWS_DOWNWARD
+!                                sub_optab,
+! #else
+!                                add_optab,
+! #endif
+!                                stack_pointer_rtx,
+!                                GEN_INT
+!                                  (PUSH_ROUNDING (GET_MODE_SIZE (GET_MODE (x)))),
+!                                stack_pointer_rtx,
+!                                0,
+!                                OPTAB_LIB_WIDEN);
+!           if (temp != stack_pointer_rtx)
+!             emit_move_insn (stack_pointer_rtx, temp);
+! 
+  	  x = change_address (x, VOIDmode, stack_pointer_rtx);
+  	}
+  #endif
+
+---
+
+Wrote some tests for operator preference semantics. Here's a chart of
+how we do.
+
+ops-1.soar   pass
+ops-2.soar   pass
+ops-3.soar   pass
+ops-4.soar   pass
+ops-5.soar   pass
+ops-6.soar   pass
+ops-7.soar   fail, expect o-tie, not select
+ops-8.soar   pass
+ops-9.soar   fail, expect o-tie, not select
+ops-10.soar  pass
+ops-11.soar  pass
+ops-12.soar  pass
+ops-13.soar  fail, culled too many candidates, expect select
+ops-14.soar  fail, expect select, not o-tie
+ops-15.soar  pass
+
+---
+
+Thought a bit more about chunking today, and realized that I am,
+indeed, screwed. When it comes to o-support, that is. Soar8 is
+remembering all the WMEs that support a preference by holding on to
+them from the ``instantiated conditions'' structure. So, if I want to
+do the same thing (but only use the RETE net), then I'll need to have
+some token shadowing thing that isn't really a token, but remembers
+why an o-supported preference got instantiated. I should probably
+figure out how I'd do the simple case (i.e., pref returned whose
+dependencies still exist as proper tokens) first, anyway...
+

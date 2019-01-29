@@ -1,0 +1,19 @@
+# Reject wins out over acceptable
+
+package require TinySoar
+set cycles 2
+
+sp {elaborate*foo
+    (state <s> ^superstate nil)
+    -->
+    (<s> ^foo bar)}
+
+sp {reject*foo
+    (state <s> ^superstate nil)
+    -->
+    (<s> ^foo bar -)}
+
+sp {detect*success
+    (state <s> -^foo ^io.output-link <out>)
+    -->
+    (<out> ^success t)}

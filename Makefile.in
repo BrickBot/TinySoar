@@ -1,0 +1,199 @@
+# -*- Mode: Makefile -*-
+#
+# Version: MPL 1.1/GPL 2.0/LGPL 2.1
+#
+# The contents of this file are subject to the Mozilla Public License
+# Version 1.1 (the "MPL"); you may not use this file except in
+# compliance with the MPL.  You may obtain a copy of the MPL at
+# http://www.mozilla.org/MPL/
+#
+# Software distributed under the MPL is distributed on an "AS IS" basis,
+# WITHOUT WARRANTY OF ANY KIND, either express or implied. See the MPL
+# for the specific language governing rights and limitations under the
+# MPL.
+#
+# The Initial Developer of this code under the MPL is Christopher
+# R. Waterson. Portions created by Christopher R. Waterson are
+# Copyright (C) 2000 Christopher R. Waterson. All Rights Reserved.
+#
+# Contributor(s):
+#   Christopher R. Waterson <waterson@maubi.net>
+#
+# Alternatively, the contents of this file may be used under the terms of
+# either the GNU General Public License Version 2 or later (the "GPL"), or 
+# the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+# in which case the provisions of the GPL or the LGPL are applicable instead
+# of those above. If you wish to allow use of your version of this file only
+# under the terms of either the GPL or the LGPL, and not to allow others to
+# use your version of this file under the terms of the MPL, indicate your
+# decision by deleting the provisions above and replace them with the notice
+# and other provisions required by the GPL or the LGPL. If you do not delete
+# the provisions above, a recipient may use your version of this file under
+# the terms of any one of the MPL, the GPL or the LGPL.
+#
+
+# Substitutions from configure.
+srcdir	= @srcdir@
+VPATH	= @srcdir@
+
+AR	= @AR@
+CC	= @CC@
+INSTALL = @INSTALL@
+LD	= @LD@
+LEX	= @LEX@
+RANLIB	= @RANLIB@
+YACC	= @YACC@
+
+CFLAGS	= @CFLAGS@ -Wall @DEFS@ -I$(srcdir) -I.
+LDFLAGS	= @LDFLAGS@
+
+# ----------------------------------------------------------------------
+#
+# Top-level targets
+#
+
+all: tcl-extension
+
+clean:
+	rm -rf .deps tinysoar.so legosoar test-alloc y.tab.* lex.yy.c *.o *.a *.map core *~
+
+distclean: clean
+	rm -f Makefile config.cache config.log config.status defs.h
+
+# ----------------------------------------------------------------------
+#
+# Dependencies
+#
+
+MDDEPDIR=.deps
+
+%.o: %.c $(MDDEPDIR)
+	$(CC) -c $(CFLAGS) -Wp,-MD,$(MDDEPDIR)/$*.pp -o $@ $<
+
+all: $(MDDEPDIR)
+
+MDDEPFILES := $(wildcard $(MDDEPDIR)/*.pp)
+
+$(MDDEPDIR):
+	mkdir $@
+
+ifdef MDDEPFILES
+include $(MDDEPFILES)
+endif
+
+# ----------------------------------------------------------------------
+#
+# Other rules
+#
+
+%.a:
+	rm -f $@
+	$(AR) cr $@ $^
+	$(RANLIB) $@
+
+# ----------------------------------------------------------------------
+#
+# Basic stuff used everywhere.
+#
+
+BASE		= base
+BASE_LIBNAME	= lib$(BASE).a
+BASE_OBJS 	= \
+		ht.o \
+		debug.o \
+		$(NULL)
+
+$(BASE_LIBNAME): $(BASE_OBJS)
+
+# ----------------------------------------------------------------------
+#
+# Stuff specific to the Soar runtime.
+#
+
+RUNTIME		= rt
+RUNTIME_LIBNAME	= lib$(RUNTIME).a
+RUNTIME_OBJS 	= \
+		agent.o \
+		rete.o \
+		wmem.o \
+		$(NULL)
+
+$(RUNTIME_LIBNAME): $(RUNTIME_OBJS)
+
+# ----------------------------------------------------------------------
+#
+# Stuff for the rule parser
+#
+
+PARSER		= parser
+PARSER_LIBNAME	= lib$(PARSER).a
+PARSER_OBJS	= \
+		y.tab.o \
+		lex.yy.o \
+		prod.o \
+		symtab.o \
+		$(NULL)
+
+$(PARSER_LIBNAME): $(PARSER_OBJS)
+
+y.tab.c: rule.y
+	$(YACC) -d $(srcdir)/rule.y
+
+lex.yy.c: rule.l
+	$(LEX) $(srcdir)/rule.l
+
+# ----------------------------------------------------------------------
+#
+# A TCL extension for testing and development.
+#
+
+tcl-extension: tinysoar.so
+
+TINYSOAR_OBJS = \
+	export.o \
+	$(NULL)
+
+libtinysoar.a: $(TINYSOAR_OBJS)
+
+tinysoar.so: tinysoar.c libtinysoar.a $(PARSER_LIBNAME) $(RUNTIME_LIBNAME) $(BASE_LIBNAME)
+	$(CC) $(CFLAGS) -shared -o $@ $< -ltcl -L. -ltinysoar -l$(PARSER) -l$(RUNTIME) -l$(BASE)
+	$(INSTALL) -C $(srcdir)/pkgIndex.tcl .
+
+# ----------------------------------------------------------------------
+#
+# Run tests
+#
+TEST_LIST = $(srcdir)/tests/test-list
+
+test: tcl-extension
+	@for t in `cat $(TEST_LIST)`; do \
+		echo -n "$$t..." ; \
+		TCLLIBPATH=`pwd` tclsh $(srcdir)/tests/run-test.tcl $(srcdir)/tests/$$t 1> /dev/null ; \
+		if [ $$? = 0 ]; then \
+			echo "succeeded." ; \
+		else \
+			echo "failed." ; \
+		fi ; \
+	done
+
+# ----------------------------------------------------------------------
+#
+# A Soar agent from the Lego RCX.
+#
+
+LEGO_OBJS = \
+	legosoar.o \
+	alloc.o \
+	rcx.o \
+	$(NULL)
+
+legosoar: $(LEGO_OBJS) $(RUNTIME_LIBNAME) $(BASE_LIBNAME)
+	$(CC) $(LEGO_OBJS) -nostdlib -Wl,-Map -Wl,legosoar.map -Wl,-T$(srcdir)/h8300.lds -o $@ -L. -l$(RUNTIME) -l$(BASE) -lgcc
+
+# ----------------------------------------------------------------------
+#
+# A test harness for the memory allocator.
+#
+
+test-alloc: test-alloc.c alloc.o debug.o
+

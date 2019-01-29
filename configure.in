@@ -1,0 +1,115 @@
+dnl -*- Mode: m4 -*-
+dnl
+dnl Version: MPL 1.1/GPL 2.0/LGPL 2.1
+dnl
+dnl The contents of this file are subject to the Mozilla Public License
+dnl Version 1.1 (the "MPL"); you may not use this file except in
+dnl compliance with the MPL.  You may obtain a copy of the MPL at
+dnl http://www.mozilla.org/MPL/
+dnl
+dnl Software distributed under the MPL is distributed on an "AS IS" basis,
+dnl WITHOUT WARRANTY OF ANY KIND, either express or implied. See the MPL
+dnl for the specific language governing rights and limitations under the
+dnl MPL.
+dnl
+dnl The Initial Developer of this code under the MPL is Christopher
+dnl R. Waterson. Portions created by Christopher R. Waterson are
+dnl Copyright (C) 2000 Christopher R. Waterson. All Rights Reserved.
+dnl
+dnl Contributor(s):
+dnl   Christopher R. Waterson <waterson@maubi.net>
+dnl
+dnl Alternatively, the contents of this file may be used under the terms of
+dnl either the GNU General Public License Version 2 or later (the "GPL"), or 
+dnl the GNU Lesser General Public License Version 2.1 or later (the "LGPL"),
+dnl in which case the provisions of the GPL or the LGPL are applicable instead
+dnl of those above. If you wish to allow use of your version of this file only
+dnl under the terms of either the GPL or the LGPL, and not to allow others to
+dnl use your version of this file under the terms of the MPL, indicate your
+dnl decision by deleting the provisions above and replace them with the notice
+dnl and other provisions required by the GPL or the LGPL. If you do not delete
+dnl the provisions above, a recipient may use your version of this file under
+dnl the terms of any one of the MPL, the GPL or the LGPL.
+AC_PREREQ(2.12)
+AC_INIT(soar.h)
+
+dnl Deal with cross-compilation.
+if test "$target" = "$host"; then
+  dnl We're doing a normal compile for the host architecture.
+
+  dnl By default, this'll give us `-g -O2'. Set CFLAGS if you want
+  dnl something else.
+  AC_PROG_CC
+
+  AC_CHECK_PROG(AR, ar, ar, :)
+  AC_CHECK_PROG(LD, ld, ld, :)
+  AC_PROG_RANLIB
+
+  AC_PROG_INSTALL
+
+  AC_CHECK_SIZEOF(int, 4)
+else
+  dnl We're doing a cross-compile. I _thought_ AC_PROG_CC was supposed to
+  dnl detect this sort of thing, but apparently it doesn't.
+  AR=${target}-ar
+  CC=${target}-gcc
+  CPP="$CC -E"
+  LD=${target}-ld
+  RANLIB=${target}-ranlib
+
+  AC_PROG_INSTALL
+
+  SIZEOF_INT=0
+  AC_ARG_WITH(sizeof-int,
+    [ --with-sizeof-int=<size> Specify the word size for a cross-compile ],
+    [ if test -n "$withval"; then
+        SIZEOF_INT="$withval"
+      fi ])
+
+  if test "$SIZEOF_INT" = "0"; then
+    AC_MSG_ERROR([You did not specify an integer size; reconfigure using --with-sizeof-int=<value>.])
+  fi
+
+  AC_DEFINE_UNQUOTED(SIZEOF_INT,$SIZEOF_INT)
+fi
+
+dnl Checks for other required programs.
+AC_PROG_LEX
+AC_PROG_YACC
+
+dnl Checks for header files.
+AC_HEADER_STDC
+AC_CHECK_HEADERS(malloc.h)
+
+dnl Checks for typedefs, structures, and compiler characteristics.
+AC_C_CONST
+AC_C_INLINE
+
+dnl Checks for library functions.
+AC_FUNC_VPRINTF
+AC_CHECK_FUNC(printf, AC_DEFINE(HAVE_PRINTF))
+
+dnl ----------------------------------------------------------------------
+dnl
+dnl Configuration Options
+dnl
+
+RETE_CREATE="yes"
+AC_ARG_WITH(rete-create,
+[  --without-rete-create   Do not include RETE creation code],
+[  if test "$withval" = "no"; then
+     RETE_CREATE="no"
+   fi ])
+
+if test "$RETE_CREATE" = "yes"; then
+  AC_DEFINE(CONF_SOAR_RETE_CREATE)
+fi
+
+AC_SUBST(AR)
+AC_SUBST(CC)
+AC_SUBST(LD)
+AC_SUBST(RANLIB)
+
+AC_CONFIG_HEADER(defs.h)
+
+AC_OUTPUT(Makefile)

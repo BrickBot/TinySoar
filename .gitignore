@@ -1,0 +1,17 @@
+*.ilk
+*.lib
+*.opt
+*.pdb
+.deps
+Makefile
+config.cache
+config.log
+config.status
+defs.h
+lex.yy.c
+parser-test
+rete-test
+tinysoar.dll
+tinysoar.exp
+y.tab.c
+y.tab.h
