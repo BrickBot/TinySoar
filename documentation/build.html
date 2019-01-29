@@ -1,0 +1,243 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+
+ <head>
+  <title>TinySoar Build Instructions</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <link rel="stylesheet" type="text/css" href="main.css">
+ </head>
+
+ <body>
+
+  <h1>TinySoar Build Instructions</h1>
+
+  <h3>Requirements</h3>
+
+  <p>
+
+   To build TinySoar's host environment, you'll need:
+
+  </p>
+
+  <ul>
+
+   <li>
+
+    <strong>To be running Linux</strong>. For what it's worth, this
+    stuff is trivially portable to other platforms (and was running
+    under Win32 for a while), but I haven't gotten around to fixing
+    everything up yet.
+
+   </li>
+
+   <li>
+
+    <strong><a href="http://www.scriptics.com/">Tcl</a></strong>.
+
+    If you're running a stock Linux distribution, you're likely to
+    have this installed already.
+
+   </li>
+
+  </ul>
+
+  <p>
+
+   To build the TinySoar runtime for the Lego&reg; Mindstorms RCX,
+   you'll need:
+
+  </p>
+
+  <ul>
+
+   <li>
+
+    <strong>An H8/300 cross-compiler</strong>.
+
+    The
+
+    <a href="http://legos.sourceforge.net/">LegOS</a>
+
+    project has
+
+    <a href="http://legos.sourceforge.net/files/">RPMs</a>
+
+    for <code>gcc</code>: installing these is probably the quickest
+    way to get started. If you're a die-hard, configure and build
+    <code>binutils</code> and <code>gcc</code> to cross-compile to
+    H8/300 yourself.
+
+   </li>
+
+   <li>
+
+    <strong><a href="http://legos.sourceforge.net/">LegOS</a></strong>.
+
+    Although the TinySoar runtime doesn't use the LegOS firmware,
+    you'll need the <code>firmdl3</code> utility to download the
+    TinySoar runtime onto the RCX.
+
+   </li>
+
+  </ul>
+
+  <h3>Getting the Code</h3>
+
+  <p>
+
+   You can download the most up-to-date development version of the
+   code (&ldquo;the trunk&rdquo;) using anonymous CVS. First, you'll
+   need to log in:
+
+  </p>
+
+  <pre class="code">$ <kbd>cvs -d :pserver:anonymous@cvs.tinysoar.sourceforge.net:/cvsroot/tinysoar login</kbd>
+(Logging in to anonymous@cvs.tinysoar.sourceforge.net)
+CVS password:</pre>
+
+  <p>
+
+   There is no password, so just press <em>return</em>. Then,
+   <em>checkout</em> the source code using this command:
+
+  </p>
+
+  <pre class="code">$ <kbd>cvs -d :pserver:anonymous@cvs.tinysoar.sourceforge.net:/cvsroot/tinysoar co tinysoar</kbd></pre>
+
+  <p>
+
+   Alternatively, you can download the a released
+   &ldquo;tarball&rdquo; from the TinySoar
+
+   <a href="http://sourceforge.net/projects/tinysoar">project homepage</a>
+
+   on SourceForge.
+
+  </p>
+
+  <h3>Building the Host Environment</h3>
+
+  <p>
+
+   Start by creating a directory that is a sibling of the
+   <code>tinysoar</code> directory; e.g., if you've installed TinySoar
+   in <code>/usr/src/tinysoar/tinysoar</code>, create a directory
+   called <code>/usr/src/tinysoar/debug</code>. Then, run <code>configure</code>:
+
+  </p>
+
+  <pre class="code">$ <kbd>cd /usr/src/tinysoar/debug</kbd> <em>(or wherever)</em>
+$ <kbd>CFLAGS="-g -DDEBUG" ../tinysoar/configure</kbd></pre>
+
+  <p>
+
+   This will configure TinySoar four your host environment.
+
+  </p>
+
+  <p>
+
+   Next, build the TinySoar Tcl extension:
+
+  </p>
+
+  <pre class="code">$ <kbd>make tcl-extension</kbd></pre>
+
+  <p>
+
+   Now, you should be able to run <code>tclsh</code> and load the TinySoar
+   extension:
+
+  </p>
+
+  <pre class="code">$ <kbd>TCLLIBPATH=`pwd` tclsh</kbd>
+% <kbd>package require TinySoar</kbd>
+Firing:
+Retracting:
+1.0
+%</pre>
+
+  <p>
+
+   If you get this far, TinySoar has been installed successfully for
+   your host environment.
+
+  </p>
+
+  <h3>Building the TinySoar Runtime for the Lego Mindstorms RCX</h3>
+
+  <p>
+
+   Once you've got your cross-compilation environment set up (building
+   and installing LegOS would be a good test for this), you're ready
+   to build TinySoar for the Lego RCX.
+
+  </p>
+
+  <p>
+
+   Make another directory that's a sibling of the
+   <code>tinysoar</code> directory; e.g.,
+   <code>/usr/src/tinysoar/h8300-hitachi-hms</code>. Then configure
+   TinySoar for the Lego RCX:
+
+  </p>
+
+  <pre class="code">$ <kbd>cd /usr/src/tinysoar/h8300-hitachi-hms</kbd> <em>(or wherever)</em>
+$ <kbd>CFLAGS="-O2 -fomit-frame-pointer" ../tinysoar/configure \</kbd>
+> <kbd>--target=h8300-hitachi-hms --with-sizeof-int=2 --without-rete-create</kbd></pre>
+
+  <p>
+
+   (I know, I really should make <code>configure</code> smart enough
+   to know all this junk.)
+
+  </p>
+
+  <p>
+
+   Then, build the target environment:
+
+  </p>
+
+  <pre class="code">$ <kbd>make legosoar</kbd></pre>
+
+  <p>
+
+   This will link in a pre-existing agent (<code>agent.inc</code> in
+   the <code>tinysoar</code> source directory, which was exported from
+   <code>tests/bumper.soar</code>), and create a file called
+   <code>lego</code> that can be downloaded to the RCX using the
+   <code>firmdl3</code> program included with LegOS. Assuming you've
+   installed LegOS in <code>/usr/src/legOS</code>, you'd type
+   something like:
+
+  </p>
+
+  <pre class="code">$ <kbd>/usr/src/legOS/util/firmdl3 --slow ./legosoar</kbd></pre>
+
+  <p>
+
+   I've never had any luck with the <code>--fast</code> option (maybe
+   I'm doing something wrong), so the <code>--slow</code> download
+   will take about two minutes. Once it's done, you should be able to
+   press the <strong>Run</strong> button on the RCX to start the
+   <code>bumper.soar</code> agent.
+
+  </p>
+
+  <p>
+
+   <em>Note that you'll need to pull the batteries out of the RCX each
+   time before downloading a new TinySoar agent.</em> This is because
+   a TinySoar agent <em>is</em> firmware, and isn't smart enough to
+   notice that new firmware is trying to be downloaded on top of
+   it. (I really ought to fix this.)
+
+  </p>
+
+  <h3><a href="index.html">Home</a></h3>
+
+ </body>
+</html>
+

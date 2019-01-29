@@ -1,0 +1,32 @@
+/*
+ * Common styles.
+ */
+
+body {
+ font-family: georgia, verdana, arial;
+}
+
+p, dl, ul, ol, pre {
+ margin-left: 10%;
+}
+
+ul, ol, pre {
+ margin-right: 10%;
+}
+
+code, dt.code, pre.code {
+ font-family: courier, fixed;
+}
+
+pre.code {
+ background: #eee;
+ padding: 1em;
+ border: solid thin;
+ white-space: pre;
+}
+
+kbd {
+ font-family: inherit;
+ font-weight: bold;
+}
+

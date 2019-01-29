@@ -1,0 +1,123 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+
+ <head>
+  <title>TinySoar Home Page</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <link rel="stylesheet" type="text/css" href="main.css">
+ </head>
+
+ <body>
+
+  <h1>TinySoar</h1>
+
+  <h3>About</h3>
+
+  <p>
+   <em>TinySoar</em> is an implementation of the
+
+   <a href="http://ai.eecs.umich.edu/soar">Soar</a>
+
+   artificial intelligence architecture that is intended to run on a
+   memory-constrained device, like a robot.  Soar is a &ldquo;real
+   time&rdquo; (as opposed to &ldquo;off-line&rdquo;) performance
+   runtime that incorporates acting, planning, and learning in a
+   rule-based framework.
+  </p>
+
+  <p>
+   TinySoar consists of two primary components. The first is a
+   portable, light-weight <em>runtime</em> that implements the Soar
+   decision cycle as a host for a Soar agent. The second is a <em>Tcl
+   extension</em> that is used to create and debug Soar agents, and
+   then export them into a format that can be compiled into the
+   runtime component.
+  </p>
+
+  <p>
+   A sample embedding (in fact, the one that inspired the project!) is
+   also included: alternative firmware for the
+
+   <a href="http://mindstorms.lego.com/">Lego&reg; Mindstorms RCX</a>
+
+   that embeds the TinySoar runtime. Using this firmware, you can
+   control a Lego robot with a Soar agent.
+
+   <em>
+    (Disclaimer: this site is neither endorsed by nor associated with
+    Lego. I'm telling you this because every other Lego Mindstorms
+    site does the same.)
+   </em>
+  </p>
+
+  <h3>Links</h3>
+
+  <dl>
+   <dt>
+    <a href="http://sourceforge.net/projects/tinysoar/">SourceForge Project Homepage</a>
+   </dt>
+
+   <dd>
+
+    From here, you can get to the CVS repository, discussion groups,
+    and all the other gewgaws that SourceForge offers.
+
+   </dd>
+
+   <dt>
+    <a href="http://prdownloads.sourceforge.net/tinysoar/tinysoar-0.3.2.tar.gz?download">tinysoar-0.3.2.tar.gz</a>
+   </dt>
+
+   <dd>
+    The latest source tarball. The <code>tinysoar-0.3.2</code> runtime
+    supports the basic Soar decision cycle. Impasses are also
+    supported, although chunking is not yet implemented. Included is
+    the Tcl extension for developing and debugging agents, firmware
+    for the Lego Mindstorms RCX, minimal documentation, and sample
+    agent code.
+   </dd>
+
+   <dt>
+    <a href="build.html">Build Instructions</a>
+   </dt>
+
+   <dd>
+    A quick-start guide to getting the source code, building it, and
+    developing Soar agents.
+   </dd>
+
+   <dt>
+    <a href="host.html">Host Environment</a>
+   </dt>
+
+   <dd>
+    A guide to using the TinySoar host environment to create and debug
+    agents.
+   </dd>
+
+   <dt>
+    <a href="rcx.html">TinySoar on the Lego Mindstorms RCX</a>
+   </dt>
+
+   <dd>
+    Describes how to write agents that run on the Lego Mindstorms RCX.
+   </dd>
+
+   <dt>
+    <a href="issues.html">Differences Between TinySoar and Soar8</a>
+   </dt>
+
+   <dd>
+    Describes some of the important differences between TinySoar and
+    Soar8, as well as some of the known issues with TinySoar.
+   </dd>
+  </dl>
+
+  <h3>Contact</h3>
+
+  <p>
+   <a href="javascript:{document.location.href='mailto:'+'wa'+'ter'+'son'+'@maubi'+'.net'}">Chris Waterson</a>
+  </p>
+
+ </body>
+</html>

@@ -1,0 +1,189 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+
+ <head>
+  <title>TinySoar on the Lego&reg; Mindstorms RCX</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <link rel="stylesheet" type="text/css" href="main.css">
+ </head>
+
+ <body>
+
+  <h1>TinySoar on the Lego&reg; Mindstorms RCX</h1>
+
+  <h2>Building</h2>
+
+  <p>
+   It's probably best to start with the
+
+   <a href="build.html">build instructions</a>,
+
+   which explain how to build and install the &ldquo;default&rdquo;
+   test agent for the Lego Mindstorms RCX,
+
+   <a href="http://cvs.sourceforge.net/cgi-bin/viewcvs.cgi/tinysoar/tinysoar/tests/bumper.soar?rev=1.5&amp;content-type=text/vnd.viewcvs-markup"><code>bumper.soar</code></a>.
+
+   Once you've verified that this agent works as expected, you're
+   ready to write a new agent for the RCX. The steps to create a new
+   agent are as follows:
+  </p>
+
+  <ol>
+   <li>
+    Load the agent's productions into the Tcl
+
+    <a href="host.html">host environment</a>,
+   </li>
+
+   <li>
+    Use the <code>export</code> command to write a new version of the
+    <code>agent.inc</code> file,
+   </li>
+
+   <li>
+    Re-compile the <code>legosoar</code> target for the RCX.
+   </li>
+
+   <li>
+    Download the new version of the <code>legosoar</code> firmware to
+    the RCX using the LegOS <code>firmdl3</code> command.
+   </li>
+  </ol>
+
+  <p>
+   For example, say we wanted to install the brain-dead agent
+   implemented in
+
+   <a href="http://cvs.sourceforge.net/cgi-bin/viewcvs.cgi/tinysoar/tinysoar/tests/drive.soar?rev=1.1&amp;content-type=text/vnd.viewcvs-markup"><code>drive.soar</code></a>
+
+   on the RCX. First, we start the <code>tclsh</code> host environment
+   and load the productions by <code>source</code>-ing the
+   <code>drive.soar</code> file:
+  </p>
+
+  <pre class="code">$ <kbd>TCLLIBPATH=`pwd` tclsh</kbd>
+% <kbd>source ../tinysoar/tests/drive.soar</kbd>
+Firing:
+Retracting:
+compiled: propose*drive
+compiled: implement*drive
+compiled: drive*reconsider
+% </pre>
+
+  <p>
+   Next, we <code>export</code> this file, replacing
+   <code>tinysoar/agent.inc</code>:
+  </p>
+
+  <pre class="code">% <kbd>export ../tinysoar/agent.inc</kbd>
+% </pre>
+
+  <p>
+   Now we exit the host environment, and rebuild the
+   <code>legosoar</code> target:
+  </p>
+
+  <pre class="code">% <kbd>exit</kbd>
+$ <kbd>cd ../h8300-hitachi-hms</kbd>
+$ <kbd>make legosoar</kbd>
+<em>...Build output...</em>
+$ </pre>
+
+  <p>
+   And finally, we download the new firmware to the RCX:
+  </p>
+
+  <pre class="code">$ <kbd>/usr/src/legOS/util/firmdl3 --slow legosoar</kbd>
+$ </pre>
+
+  <p>
+   <em>Note that you'll need to pull the batteries out of the RCX each
+   time before downloading a new TinySoar agent.</em> This is because
+   a TinySoar agent <em>is</em> firmware, and isn't smart enough to
+   notice that new firmware is trying to be downloaded on top of
+   it. (I really ought to fix this.)
+  </p>
+
+  <p>
+   If all goes well, the motors should start to unconditionally run
+   when you press the <strong>Run</strong> button on the RCX.
+  </p>
+
+  <h2>Input and Output</h2>
+
+  <p>
+   The TinySoar runtime for the Lego Mindstorms RCX allows a TinySoar
+   agent to interact with the RCX's sensors via the
+   <code>^input-link</code>, and control the RCX's motors with the
+   <code>^output-link</code>.
+  </p>
+
+  <h3>Sensors</h3>
+
+  <p>
+   Specifically, each of the three sensors are sampled once per
+   elaboration. Each sensor's value is converted to an integer value
+   between 0 and 1023, and added to the top state's
+   <code>^io.input-link</code> as the value of the
+   <code>^sensor-1</code>, <code>^sensor-2</code>, or
+   <code>^sensor-3</code> preference, as appropriate.
+  </p>
+
+  <p>
+   The touch sensors typically register values above 1,000 when not
+   depressed, and values in the low 100's when depressed (the signals
+   tend to drift, due to the fact that they are being converted from
+   an analog voltage). A rule like the one that follows is probably
+   sufficient to detect a touch sensor's depression:
+  </p>
+
+  <pre class="code">sp {detect*sensor-a*depressed
+    (state &lt;s&gt; ^superstate nil ^io.input-link.sensor-1 &gt; 512)
+    --&gt;
+    (&lt;s&gt; ^touch-sensor-a depressed)}</pre>
+
+  <p>
+   The light sensor tends to wobble between values of about 300 for
+   bright light to 800 for darkness.
+  </p>
+
+  <p>
+   The sensors are currently run in &ldquo;active mode&rdquo; all the
+   time; e.g., so that the light sensor's LED will turn on.
+  </p>
+
+  <h3>Motors</h3>
+
+  <p>
+   Similarly, the RCX runtime checks the <code>^io.output-link</code>
+   for <code>^motor-a</code>, <code>^motor-b</code>, and
+   <code>^motor-c</code> attributes once per elaboration. Each
+   attribute's value controls the corresponding motor: the symbolic
+   constant <code>forward</code> will make the motor run
+   &ldquo;forwards&rdquo;; the symbolic constant <code>reverse</code>
+   will make the motor run &ldquo;backwards&rdquo;; the symbolic
+   constant <code>brake</code> will lock the motor in position; and a
+   value of <code>off</code> (or the absence of an attribute) will
+   turn off the motor, allowing it to &ldquo;free-wheel&rdquo;.
+  </p>
+
+  <p>
+   The following rule (from
+
+   <a href="http://cvs.sourceforge.net/cgi-bin/viewcvs.cgi/tinysoar/tinysoar/tests/drive.soar"><code>drive.soar</code></a>)
+
+   runs motors A and C &ldquo;forwards&rdquo; when the
+   <code>drive</code> operator is selected:
+  </p>
+
+  <pre class="code">sp {implement*drive
+    (state &lt;s&gt; ^operator &lt;o&gt; ^io &lt;io&gt;)
+    (&lt;o&gt; ^name drive)
+    (&lt;io&gt; ^output-link &lt;out&gt;)
+    --&gt;
+    (&lt;out&gt; ^motor-a forward ^motor-c forward)}</pre>
+
+  <h3><a href="index.html">Home</a></h3>
+
+ </body>
+</html>

@@ -1,0 +1,319 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+
+ <head>
+  <title>TinySoar Host Environment</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <link rel="stylesheet" type="text/css" href="main.css">
+  <style type="text/css">
+   dt { font-family: courier; font-weight: bold; font-size: smaller; }
+   dd { margin-top: 0.5em; margin-bottom: 0.5em; }
+   #preftypes { border: 1px solid grey; margin: 1em 0; }
+   #preftypes td { padding: 0 0.5em; border: 1px dotted grey; }
+  </style>
+ </head>
+
+ <body>
+
+  <h1>TinySoar Host Environment</h1>
+
+  <p>
+   Like Soar8.2, the TinySoar <em>host enviornment</em> is a Tcl
+   extension that provides a command-line interface to the TinySoar
+   runtime. The Tcl extension also includes commands useful for
+   developing and debugging agents for the runtime.
+  </p>
+
+  <p>
+   The handful of commands that the TinySoar Tcl extension adds to the
+   Tcl environment are listed below.
+  </p>
+
+  <h3>Commands</h3>
+
+  <dl>
+   <dt id="dump-rete" class="code">dump-rete</dt>
+
+   <dd>
+    Dump the RETE network. (For deep debugging only.)
+   </dd>
+
+   <dt id="elaborate" class="code">ela[borate]</dt>
+
+   <dd>
+    Run the TinySoar runtime for a single elaboration cycle.
+   </dd>
+
+   <dt id="export" class="code">export &lt;file&gt;</dt>
+
+   <dd>
+     Export the RETE network as a C code to the specified file.
+   </dd>
+
+   <dt class="code">init-soar</dt>
+
+   <dd>
+    Reset the runtime to its initial state, removing all preferences
+    and working memory elements.
+   </dd>
+
+   <dt id="preferences" class="code">pref[erences] &lt;id&gt; ^&lt;attr&gt;</dt>
+
+   <dt class="code">pref[erences] -a &lt;id&gt; ^&lt;attr&gt; [+|-]&lt;val&gt; &lt;type&gt; [&lt;ref&gt;]</dt>
+
+   <dt class="code">pref[erences] -r &lt;pref&gt;</dt>
+
+   <dd>
+    Display, add, or remove preferences from working memory. The
+    <code>preferences</code> command has three forms. The first form
+    displays the preferences for the specified slot:
+    <code>&lt;id&gt;</code> must be an identifier,
+    <code>&lt;attr&gt;</code>must by a symbolic constant.  The second
+    form is used to add a preference to the specified slot:
+    <code>&lt;id&gt;</code> must be an identifier,
+    <code>&lt;attr&gt;</code> must be a symbolic constant, and
+    <code>&lt;val&gt;</code> may be an identifier, a symbolic
+    constant, or a numeric constant. Numeric constants must be
+    prefixed by a <code>+</code> or a <code>-</code> to distinguish
+    them from identifiers. <code>&lt;type&gt;</code> is the preference
+    type; specifically:
+
+    <table id="preftypes" style="margin-left: 10%;">
+     <tr>
+      <td><code>+</code></td> <td>acceptable</td>
+     </tr>
+
+     <tr>
+      <td><code>-</code></td> <td>reject</td>
+     </tr>
+
+     <tr>
+      <td><code>@</code></td> <td>reconsider</td>
+     </tr>
+
+     <tr>
+      <td><code>=</code></td> <td>indifferent, unary or binary</td>
+     </tr>
+
+     <tr>
+      <td><code>&lt;</code></td> <td>worst if unary, worse if binary</td>
+     </tr>
+
+     <tr>
+      <td><code>&gt;</code></td> <td>best if unary, better if binary</td>
+     </tr>
+    </table>
+
+    Binary preferences (indifferent, worse, or better) also require
+    the referent <code>&lt;ref&gt;</code> to be specified. The
+    referent may be an identifier, a symbolic constant, or a numeric
+    constant. The result of <code>preferences&nbsp;-a</code> is a
+    unique number identifying the preference. This value can be used
+    with the third form of the command,
+    <code>preferences&nbsp;-r</code>, to remove the preference from
+    working memory. Note that <code>preferences&nbsp;-r</code> is
+    <em>not</em> idempotent: using it more than once on the same
+    preference (or using it with a value not returned from
+    <code>preferences&nbsp;-a</code>) will cause undefined behavior
+    and possibly crash the runtime.
+   </dd>
+
+   <dt id="print" class="code">pri[nt] &lt;id&gt;</dt>
+
+   <dd>
+    Print the working memory elements associated with the specified
+    identifer <code>&lt;id&gt;</code>.
+   </dd>
+
+   <dt id="sp" class="code">sp &lt;production&gt;</dt>
+
+   <dd>
+    Add a production to the RETE network.
+   </dd>
+
+  </dl>
+
+  <h3>Example</h3>
+
+  <p>
+   Below is a sample session that illustrates how some of the commands
+   are used. To follow along, start <code>tclsh</code> in the
+   directory where you've built <code>tinysoar.so</code>, and load the
+   <code>drive.soar</code> sample:
+  </p>
+
+  <pre class="code">$ <kbd>TCLLIBPATH=`pwd` tclsh</kbd>
+% <kbd>source ../tinysoar/tests/drive.soar</kbd>
+Firing:
+Retracting:
+compiled: propose*drive
+compiled: implement*drive
+compiled: drive*reconsider
+%</pre>
+
+  <p>
+   Run two elaboration cycles.
+  </p>
+
+  <pre class="code">% <kbd>ela</kbd>
+Firing:
+  propose*drive
+Retracting:
+% <kbd>ela</kbd>
+[1]: [5]
+Firing:
+  implement*drive
+  drive*reconsider
+Retracting:
+% </pre>
+
+  <p>
+   Note the `<code>[1]: [5]</code>' that is printed after the second
+   elaboration. This indicates that operator <code>[5]</code> has been
+   selected for state <code>[1]</code>.
+  </p>
+
+  <p>
+   Let's print the working memory elements currently associated with
+   state <code>[1]</code>. (Note that the top-level state is
+   <em>always</em> identifier <code>[1]</code>.)
+  </p>
+
+  <pre class="code">% <kbd>print 1</kbd>
+([1] ^superstate nil ^io [2] ^operator [5] ^operator [5] +)
+% </pre>
+
+  <p>
+   In other words, the top state has the I/O link <code>[2]</code>,
+   and operator <code>[5]</code> both with &ldquo;normal&rdquo;
+   (<code>^operator&nbsp;[5]</code>) and &ldquo;acceptable&rdquo;
+   (<code>^operator&nbsp;[5]&nbsp;+</code>) working memory elements
+   present.
+  </p>
+
+  <p>
+   Let's look at the operator a bit more closely:
+  </p>
+
+  <pre class="code">% <kbd>print 5</kbd>
+([5] ^name drive)
+% </pre>
+
+  <p>
+   Operator <code>[5]</code>'s name is <code>drive</code>.
+  </p>
+
+  <p>
+   Let's look at what preferences are currently in working memory for
+   identifier <code>[1]</code>'s  <code>^operator</code> slot:
+  </p>
+
+  <pre class="code">% <kbd>pref 1 ^operator</kbd>
+134698720: [5] @
+134691928: [5] +
+% </pre>
+
+  <p>
+   There is a <em>reconsider</em> preference (`<code>@</code>') and an
+   <em>acceptable</em> preference (`<code>+</code>') for the
+   <code>^operator</code> slot in the top state. Both preferences are
+   for identifier <code>[5]</code>.
+  </p>
+
+  <p>
+   Now let's tinker with preferences a bit:
+  </p>
+
+  <pre class="code">% <kbd>print 2</kbd>
+([2] ^input-link [3] ^output-link [4])
+% <kbd>pref -a 3 ^sensor-1 +100 +</kbd>
+134699296
+% </pre>
+
+  <p>
+   We just added an acceptable preference to the input link, setting
+   the <code>^sensor-1</code> attribute to a numeric constant of
+   +100. Let's double-check to be sure:
+  </p>
+
+  <pre class="code">% <kbd>pref 3 ^sensor-1</kbd>
+134699296: 100 +
+% </pre>
+
+  <p>
+   Note that there are no square-braces around the <code>100</code>:
+   that indicates that the value `100' is a <em>numeric constant</em>,
+   not an <em>identifier</em>.
+  </p>
+
+  <p>
+   Has a working memory element been created, too?
+  </p>
+
+  <pre class="code">% <kbd>print 3</kbd>
+([3])
+% </pre>
+
+  <p>
+   No! The <em>preference</em> is present, but no working memory
+   element has been created yet. Working memory elements get created
+   during elaboration as a result of preference addition. So, after
+   elaborating once, we should see our acceptable preference converted
+   into a working memory element:
+  </p>
+
+  <pre class="code">% <kbd>ela</kbd>
+[1]: [5]
+Firing:
+  implement*drive
+  drive*reconsider
+Retracting:
+  implement*drive
+  drive*reconsider
+% <kbd>print 3</kbd>
+([3] ^sensor-1 100)
+% </pre>
+
+  <p>
+   Now let's remove that preference, and verify that it's gone:
+  </p>
+
+  <pre class="code">% <kbd>pref -r 134699296</kbd>
+% <kbd>pref 3 ^sensor-1</kbd>
+% </pre>
+
+  <p>
+   The preference is gone; does the working memory element remain?
+  </p>
+
+  <pre class="code">% <kbd>print 3</kbd>
+([3] ^sensor-1 100)
+% </pre>
+
+  <p>
+   Yes. Again, working memory elements are created and destroyed
+   during elaboration:
+  </p>
+
+  <pre class="code">% <kbd>ela</kbd>
+[1]: [5]
+Firing:
+  implement*drive
+  drive*reconsider
+Retracting:
+  implement*drive
+  drive*reconsider
+% <kbd>print 3</kbd>
+([3])
+% </pre>
+
+  <p>
+   At this point, the agent's input-link is in the same state as it
+   was before we began tinkering with preferences.
+  </p>
+
+  <h3><a href="index.html">Home</a></h3>
+
+ </body>
+</html>
+

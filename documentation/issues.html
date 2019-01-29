@@ -1,0 +1,133 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<html>
+
+ <head>
+  <title>TinySoar Home Page</title>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <link rel="stylesheet" type="text/css" href="main.css">
+ </head>
+
+ <body>
+
+  <h1>Differences Between TinySoar and Soar8</h1>
+
+  <p>
+   TinySoar, in order to be tiny, does not implement many of the
+   features available in Soar8. This document lists some of the
+   differences between TinySoar and Soar8, as well as some of the
+   known issues (ahem, bugs) in TinySoar.
+  </p>
+
+  <h3>No support for chunking, justifications, or impasses</h3>
+
+  <p>
+   TinySoar currently doesn't implement chunking or justifications,
+   and thus has no way to resolve impasses. This is currently being
+   implemented on the trunk, but is highly experimental at this point.
+  </p>
+
+  <h3>Conjunctive negative conditions are not supported</h3>
+
+  <p>
+   In Soar8, you can write a rule with <em>conjunctive negative
+   conditions</em>; i.e., a negative test that is the conjunction of
+   several tests. For example:
+  </p>
+
+  <pre class="code">sp {check*no*operator*foo
+    (state &lt;s&gt; ^superstate nil)
+  -{(&lt;s&gt; ^operator &lt;o&gt;)
+    (&lt;o&gt; ^name foo)}
+    --&gt;
+    <i>/* do something */</i>}</pre>
+
+  <p>
+   This production will match when there is no <code>^operator</code>
+   with a <code>^name</code> of <code>foo</code> on the state. Here's
+   another example:
+  </p>
+
+  <pre class="code">sp {check*no*foo*and*bar
+    (state &lt;s&gt; ^superstate nil)
+   -(&lt;s&gt; ^foo t ^bar t)
+    --&gt;
+    <i>/* do something */</i>}</pre>
+
+  <p>
+   This production will match when <code>^foo&nbsp;t</code> and
+   <code>^bar&nbsp;t</code> are both not present on the state at the
+   same time.
+  </p>
+
+  <p>
+   Most of the time, it should be possible to implement equivalent
+   functionality by breaking a rule with conjunctive negative
+   conditions into two rules: one that detects the negative condition
+   and annotates the state, and another that detects the state
+   annotation and triggers the original intended operation. For
+   example, <code>check*no*foo*and*bar</code> could re-written in two
+   rules without a conjunctive negative condition as follows:
+  </p>
+
+  <pre class="code">sp {check*foo*and*bar
+    (state &lt;s&gt; ^superstate nil ^foo t ^bar t)
+    --&gt;
+    (&lt;s&gt; ^foo-and-bar t)}
+
+sp {check*no*foo-and-bar
+    (state &lt;s&gt; ^superstate nil -^foo-band-bar t)
+    --&gt;
+    <i>/* do something */</i>}</pre>
+
+  <p>
+   Unfortunately, there are some issues with this approach. For
+   example, to break <code>check*no*operator*foo</code> into two
+   productions, we'd end up with a <code>^operator-foo&nbsp;t</code>
+   annotation on the state that is <em>o-supported</em> because it's
+   tested the operator.
+  </p>
+
+  <p>
+   So, it's not clear at this time whether implementing conjunctive
+   negative conditions in TinySoar would be a good thing to do or
+   not. It certainly is a wonderful convenience for authoring rules,
+   and may even be a necessity to achieve some sorts of behavior.
+   However, that convenience comes at the price of additional runtime
+   code, which is at a premium.
+  </p>
+
+  <h3>Expressions are not supported in a rule's RHS</h3>
+
+  <p>
+   In Soar8, you can write a rule like this:
+  </p>
+
+  <pre class="code">sp {increment*foo
+   (state &lt;s&gt; ^foo &lt;i&gt;)
+   --&gt;
+   (&lt;s&gt; ^foo &lt;i&gt; - ^foo (+ &lt;i&gt; 1) +)}</pre>
+
+  <p>
+   In other words, replace the integer value <code>&lt;i&gt;</code>
+   with <code>&lt;i&gt;&nbsp;+&nbsp;1</code>. This is not currently
+   supported.
+  </p>
+
+  <h3><a href="http://sourceforge.net/tracker/index.php?func=detail&amp;aid=508521&amp;group_id=42131&amp;atid=432196">The runtime can run out of identifiers</a></h3>
+
+  <p>
+   Identifiers are not heap-allocated objects, like they are in
+   Soar8: each new identifier is assigned a monotonically increasing
+   integral value. Unfortunately, on a real computer, that means you
+   can overflow the representation. For example, on the Lego
+   Mindstorms RCX, there are 14 bits available to store the
+   identifier's value, allowing for no more than 16,384
+   identifiers. When an overflow occurs, behavior becomes undefined
+   -- definitely a bug! (The current plan is to fix this by recycling
+   the identifier values that aren't in use.)
+  </p>
+
+  <h3><a href="index.html">Home</a></h3>
+
+ </body>
+</html>
