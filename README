@@ -9,7 +9,7 @@ architecture (<http://ai.eecs.umich.edu/soar/>) that is intended to
 run on memory-constrained hardware, like a robot.
 
 The original project website was:
-<http://tinysoar.sourceforge.net/>
+<http://tinysoar.sf.net/>
 
 So far, TinySoar includes one robot embedding: the Lego Mindstorms
 RCX.
